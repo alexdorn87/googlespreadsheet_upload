@@ -1,13 +1,12 @@
-
-
 var fs = require('fs');
 var readline = require('readline');
 var google = require('googleapis');
 var googleAuth = require('google-auth-library');
+var obj = require('./document.json');
 
 // If modifying these scopes, delete your previously saved credentials
 // at ~/.credentials/sheets.googleapis.com-nodejs-quickstart.json
-var SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly'];
+var SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 var TOKEN_DIR = (process.env.HOME || process.env.HOMEPATH ||
     process.env.USERPROFILE) + '/.credentials/';
 var TOKEN_PATH = TOKEN_DIR + 'rabih.json';
@@ -20,7 +19,7 @@ fs.readFile('client_secret.json', function processClientSecrets(err, content) {
   }
   // Authorize a client with the loaded credentials, then call the
   // Google Sheets API.
-  authorize(JSON.parse(content), listMajors);
+  authorize(JSON.parse(content), addNewSheet);
 });
 
 /**
@@ -101,9 +100,63 @@ function storeToken(token) {
  * Print the names and majors of students in a sample spreadsheet:
  * https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
  */
-function listMajors(auth) {
+function addNewSheet(auth) {
   var sheets = google.sheets('v4');
-  sheets.spreadsheets.values.get({
+  console.log (sheets.spreadsheets.batchUpdate);
+  sheets.spreadsheets.batchUpdate({
+    auth: auth,
+    spreadsheetId: "1_bEBzuXxEtR8voJNpd8ICampqe_2cEuy_YH84bKw9vA",
+    resource: {
+      "requests": [
+        {
+          "addSheet": {
+            "properties": {
+              "title": "new",
+              /*"gridProperties": {
+                "rowCount": 86,
+                "columnCount": 20
+              },*/
+              "tabColor": {
+                "red": 1.0,
+                "green": 0.3,
+                "blue": 0.4
+              }
+            }
+          }
+        }
+      ]
+    }
+  }, (err, response) => {
+    if (err) {
+      console.log('The API returned an error: ' + err);
+      return;
+    } else {
+      console.log("New Sheet Appended");
+      console.log (response);
+      sheets.spreadsheets.batchUpdate({
+        auth: auth,
+        spreadsheetId: "1_bEBzuXxEtR8voJNpd8ICampqe_2cEuy_YH84bKw9vA",
+        resource: {
+          "requests": [
+            {
+              "mergeCells": {
+                "range": 'Sheet1!A0:R0',
+                "mergeType": 'MERGE_ALL'
+              }
+            }
+          ]
+        }
+      }, (err, response) => {
+        if (err) {
+          console.log('The API returned an error: ' + err);
+          return;
+        } else {
+          console.log("Appended");
+        }
+      });
+    }
+  });
+  /*sheets.spreadsheets.values.get({
     auth: auth,
     spreadsheetId: '1_bEBzuXxEtR8voJNpd8ICampqe_2cEuy_YH84bKw9vA',
     range: 'Class Data!A2:E',
@@ -123,5 +176,5 @@ function listMajors(auth) {
         console.log('%s, %s', row[0], row[4]);
       }
     }
-  });
+  });*/
 }
