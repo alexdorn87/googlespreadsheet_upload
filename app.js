@@ -103,6 +103,7 @@ function storeToken(token) {
 function addNewSheet(auth) {
   var sheets = google.sheets('v4');
   console.log (sheets.spreadsheets.batchUpdate);
+
   sheets.spreadsheets.batchUpdate({
     auth: auth,
     spreadsheetId: "1_bEBzuXxEtR8voJNpd8ICampqe_2cEuy_YH84bKw9vA",
@@ -126,32 +127,52 @@ function addNewSheet(auth) {
         }
       ]
     }
-  }, (err, response) => {
+  }, (err, res1) => {
     if (err) {
       console.log('The API returned an error: ' + err);
       return;
     } else {
       console.log("New Sheet Appended");
-      console.log (response);
-      sheets.spreadsheets.batchUpdate({
+      console.log (res1);
+      sheets.spreadsheets.get({
         auth: auth,
         spreadsheetId: "1_bEBzuXxEtR8voJNpd8ICampqe_2cEuy_YH84bKw9vA",
-        resource: {
-          "requests": [
-            {
-              "mergeCells": {
-                "range": 'Sheet1!A0:R0',
-                "mergeType": 'MERGE_ALL'
-              }
-            }
-          ]
-        }
-      }, (err, response) => {
+        includeGridData: false,
+
+      }, (err, res2) => {
         if (err) {
           console.log('The API returned an error: ' + err);
           return;
         } else {
-          console.log("Appended");
+          console.log("sheet info");
+          console.log (res2.sheets);
+          sheets.spreadsheets.batchUpdate({
+            auth: auth,
+            spreadsheetId: "1_bEBzuXxEtR8voJNpd8ICampqe_2cEuy_YH84bKw9vA",
+            resource: {
+              "requests": [
+                {
+                  "mergeCells": {
+                    "range": {
+                      "sheetId": res2.sheets[res2.sheets.length-1].properties.sheetId,
+                      "startRowIndex": 0,
+                      "endRowIndex": 1,
+                      "startColumnIndex": 0,
+                      "endColumnIndex": 18,
+                    },
+                    "mergeType": 'MERGE_ALL'
+                  }
+                }
+              ]
+            }
+          }, (err, res3) => {
+            if (err) {
+              console.log('The API returned an error: ' + err);
+              return;
+            } else {
+              console.log("merged");
+            }
+          });
         }
       });
     }
