@@ -4,9 +4,11 @@ var google = require('googleapis');
 var googleAuth = require('google-auth-library');
 var random = require("random-js")(); // uses the nativeMath engine
 var request = require('request');
-var obj = require('./document.json');
+//var obj = require('./document.json');
 var spreadsheetid = "1_bEBzuXxEtR8voJNpd8ICampqe_2cEuy_YH84bKw9vA";
 var sheets = google.sheets('v4');
+var doc_obj = {};
+var cur_idx = 0;
 
 // If modifying these scopes, delete your previously saved credentials
 // at ~/.credentials/sheets.googleapis.com-nodejs-quickstart.json
@@ -111,10 +113,10 @@ function addNewSheet(auth, callback) {
           "addSheet": {
             "properties": {
               "title": new Date().toISOString(),
-              /*"gridProperties": {
-               "rowCount": 86,
+              "gridProperties": {
+               "rowCount": 5000,
                "columnCount": 20
-               },*/
+               },
               "tabColor": {
                 "red": random.integer(1, 100)/100,
                 "green": random.integer(1, 100)/100,
@@ -155,17 +157,9 @@ function getsheetid(auth, callback) {
         //console.log('error:', error); // Print the error if one occurred
         //console.log('statusCode:', response && response.statusCode); // Print the response status code if a response was received
         //console.log(JSON.parse(body)); // Print the HTML for the Google homepage.
-        var obj = JSON.parse(body).modules;
-        var row = 0;
-        var tmp = {};
-        //console.log (obj);
-        Object.keys(obj).forEach(function(item){
-          tmp = {};
-          tmp [item] = obj[item];
-          //console.log (obj[item]);
-          //batchupdate
-          row = callback (auth, res2.sheets[res2.sheets.length-1].properties.sheetId, tmp, row, null);
-        });
+        doc_obj = JSON.parse(body).modules;
+        //batchupdate
+        row = callback (auth, res2.sheets[res2.sheets.length-1].properties.sheetId, null, 0, null);
 
       });
 
@@ -175,8 +169,11 @@ function getsheetid(auth, callback) {
 
 function makestr(obj_tmp) {
   var str = '';
-  if (obj_tmp != undefined)
+  if (typeof obj_tmp === 'object') {
+    str = JSON.stringify(obj_tmp);
+  }else if (obj_tmp != undefined) {
     str = obj_tmp.toString();
+  }
   return str;
 }
 
@@ -184,25 +181,30 @@ function batchupdate(auth, sheetId, module_obj, startrow, callback) {
   var requests = [];
   var row = startrow;
   var col = 0;
-  var ent = module_obj;
+  var item = Object.keys(doc_obj)[cur_idx];
+  //item = '56343'
+  var tmp = {};
+  tmp [item] = doc_obj[item];
+  var ent = tmp;
+  console.log ("start row : "+row);
 
-  requests.push({
+  /*requests.push({
     repeatCell: {
       range: {sheetId: sheetId, startRowIndex: 0, endRowIndex:1000},
       cell: {
         userEnteredFormat: {
-          /*"backgroundColor": {
+          "backgroundColor": {
            "red": 0.0,
            "green": 0.0,
            "blue": 0.0
-           },*/
+           },
           "horizontalAlignment" : "CENTER",
           "textFormat": {
-            /*"foregroundColor": {
+            "foregroundColor": {
              "red": 1.0,
              "green": 1.0,
              "blue": 1.0
-             },*/
+             },
             "fontSize": 12,
             "bold": true
           }
@@ -210,7 +212,7 @@ function batchupdate(auth, sheetId, module_obj, startrow, callback) {
       },
       fields: 'userEnteredValue,userEnteredFormat.horizontalAlignment'
     }
-  });
+  });*/
 
   requests.push({
     "mergeCells": {
@@ -257,19 +259,6 @@ function batchupdate(auth, sheetId, module_obj, startrow, callback) {
         "sheetId": sheetId,
         "startRowIndex": row+2,
         "endRowIndex": row+3,
-        "startColumnIndex": col+4,
-        "endColumnIndex": col+12,
-      },
-      "mergeType": 'MERGE_ALL'
-    }
-  });
-
-  requests.push({
-    "mergeCells": {
-      "range": {
-        "sheetId": sheetId,
-        "startRowIndex": row+2,
-        "endRowIndex": row+3,
         "startColumnIndex": col+12,
         "endColumnIndex": col+18,
       },
@@ -277,18 +266,33 @@ function batchupdate(auth, sheetId, module_obj, startrow, callback) {
     }
   });
 
-  requests.push({
-    "mergeCells": {
-      "range": {
-        "sheetId": sheetId,
-        "startRowIndex": row+3,
-        "endRowIndex": row+4,
-        "startColumnIndex": col+6,
-        "endColumnIndex": col+12,
-      },
-      "mergeType": 'MERGE_ALL'
-    }
-  });
+  if (ent[Object.keys(ent)[0]].options && Object.keys(ent[Object.keys(ent)[0]].options)[0] == 'searches') {
+
+    requests.push({
+      "mergeCells": {
+        "range": {
+          "sheetId": sheetId,
+          "startRowIndex": row+2,
+          "endRowIndex": row+3,
+          "startColumnIndex": col+4,
+          "endColumnIndex": col+12,
+        },
+        "mergeType": 'MERGE_ALL'
+      }
+    });
+    requests.push({
+      "mergeCells": {
+        "range": {
+          "sheetId": sheetId,
+          "startRowIndex": row + 3,
+          "endRowIndex": row + 4,
+          "startColumnIndex": col + 6,
+          "endColumnIndex": col + 12,
+        },
+        "mergeType": 'MERGE_ALL'
+      }
+    });
+  }
 
   requests.push({
     "mergeCells": {
@@ -315,59 +319,98 @@ function batchupdate(auth, sheetId, module_obj, startrow, callback) {
     }
   });
   ent = ent[Object.keys(ent)[0]];
-
   requests.push({
     updateCells: {
-      start: {sheetId: sheetId, rowIndex: row+1, columnIndex: col},
+      start: {sheetId: sheetId, rowIndex: row + 1, columnIndex: col},
       rows: [
-        {values: [{
+        {
+          values: [{
             userEnteredValue: {stringValue: 'id'},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8}}
+            userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8}}
           },
-          {
-            userEnteredValue: {stringValue: 'type'},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: 'title'},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: 'style'},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: 'options'},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8}}
-          }
+            {
+              userEnteredValue: {stringValue: 'type'},
+              userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8}}
+            },
+            {
+              userEnteredValue: {stringValue: 'title'},
+              userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8}}
+            },
+            {
+              userEnteredValue: {stringValue: 'style'},
+              userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8}}
+            },
+            {
+              userEnteredValue: {stringValue: 'options'},
+              userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8}}
+            }
           ]
         },
-        {values: [{
+        {
+          values: [{
             userEnteredValue: {stringValue: makestr(ent.id)},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
+            userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
           },
-          {
-            userEnteredValue: {stringValue: makestr(ent.type)},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: makestr(ent.title)},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: makestr(ent.style)},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: 'options []'},
-            userEnteredFormat: {backgroundColor: {red:1, green: 0.8, blue:0.5}}
-          }
-        ]
+            {
+              userEnteredValue: {stringValue: makestr(ent.type)},
+              userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+            },
+            {
+              userEnteredValue: {stringValue: makestr(ent.title)},
+              userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+            },
+            {
+              userEnteredValue: {stringValue: makestr(ent.style)},
+              userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+            }
+          ]
         }
       ],
       fields: 'userEnteredValue,userEnteredFormat.backgroundColor'
     }
   });
+
+  if (!ent.options)
+    ent.options = {};
+  if (Object.keys(ent.options)[0] == 'searches') {
+    requests.push({
+      updateCells: {
+        start: {sheetId: sheetId, rowIndex: row + 2, columnIndex: col+4},
+        rows: [
+          {
+            values: [
+              {
+                userEnteredValue: {stringValue: 'searches []'},
+                userEnteredFormat: {backgroundColor: {red: 1, green: 0.8, blue: 0.5}}
+              }
+            ]
+          }
+        ],
+        fields: 'userEnteredValue,userEnteredFormat.backgroundColor'
+      }
+    });
+  } else {
+    var idx = 0;
+    Object.keys(ent.options).forEach(function(tmp) {
+      requests.push({
+        updateCells: {
+          start: {sheetId: sheetId, rowIndex: row + 2, columnIndex: col+4+idx},
+          rows: [
+            {
+              values: [
+                {
+                  userEnteredValue: {stringValue: tmp},
+                  userEnteredFormat: {backgroundColor: {red: 1, green: 0.8, blue: 0.5}}
+                }
+              ]
+            }
+          ],
+          fields: 'userEnteredValue,userEnteredFormat.backgroundColor'
+        }
+      });
+      idx++;
+    });
+  }
 
   requests.push({
     updateCells: {
@@ -423,219 +466,356 @@ function batchupdate(auth, sheetId, module_obj, startrow, callback) {
   });
 
   //var ent1 = ent[Object.keys(ent)[3]] [Object.keys(ent[Object.keys(ent)[3]])[0]][0];
-  console.log (ent);
+  //console.log (ent);
   var ent1 = ent.options[Object.keys(ent.options)[0]];
   if (Array.isArray(ent1))
     ent1 = ent1[0];
   var col1 = {red: random.integer(1, 100)/100, green: random.integer(1, 100)/100, blue:random.integer(1, 100)/100};
   var col2 = {red: random.integer(1, 100)/100, green: random.integer(1, 100)/100, blue:random.integer(1, 100)/100};
 
-  requests.push({
-    updateCells: {
-      start: {sheetId: sheetId, rowIndex: row+3, columnIndex: col+4},
-      rows: [
-        {values: [{
-          userEnteredValue: {stringValue: Object.keys(ent1)[0]},
-          userEnteredFormat: {backgroundColor: col1}
-        },
+  if (Object.keys(ent.options)[0] == 'searches') {
+    requests.push({
+      updateCells: {
+        start: {sheetId: sheetId, rowIndex: row + 3, columnIndex: col + 4},
+        rows: [
           {
-            userEnteredValue: {stringValue: Object.keys(ent1)[1]},
-            userEnteredFormat: {backgroundColor: col1}
+            values: [{
+              userEnteredValue: {stringValue: Object.keys(ent1)[0]},
+              userEnteredFormat: {backgroundColor: col1}
+            },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1)[1]},
+                userEnteredFormat: {backgroundColor: col1}
+              },
+              {
+                userEnteredValue: {stringValue: 'fields'},
+                userEnteredFormat: {backgroundColor: col1}
+              }
+            ]
           },
           {
-            userEnteredValue: {stringValue: Object.keys(ent1)[2]},
-            userEnteredFormat: {backgroundColor: col1}
+            values: [
+              {
+                userEnteredValue: {stringValue: ""},
+                userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+              },
+              {
+                userEnteredValue: {stringValue: ""},
+                userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[0].toString()},
+                userEnteredFormat: {backgroundColor: col2}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[1] ? Object.keys(ent1.fields)[1].toString() : ''},
+                userEnteredFormat: {backgroundColor: col2}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[2] ? Object.keys(ent1.fields)[2].toString() : ''},
+                userEnteredFormat: {backgroundColor: col2}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[3] ? Object.keys(ent1.fields)[3].toString() : ''},
+                userEnteredFormat: {backgroundColor: col2}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[4] ? Object.keys(ent1.fields)[4].toString() : ''},
+                userEnteredFormat: {backgroundColor: col2}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[5] ? Object.keys(ent1.fields)[5].toString() : ''},
+                userEnteredFormat: {backgroundColor: col2}
+              }
+            ]
+          },
+          {
+            values: [
+              {
+                userEnteredValue: {stringValue: ent1[Object.keys(ent1)[0]].toString()},
+                userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+              },
+              {
+                userEnteredValue: {stringValue: ent1[Object.keys(ent1)[1]].toString()},
+                userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[0] ? ent1.fields[Object.keys(ent1.fields)[0]].toString() : ''},
+                userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[1] ? ent1.fields[Object.keys(ent1.fields)[1]].toString() : ''},
+                userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[2] ? ent1.fields[Object.keys(ent1.fields)[2]].toString() : ''},
+                userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[3] ? ent1.fields[Object.keys(ent1.fields)[3]].toString() : ''},
+                userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[4] ? ent1.fields[Object.keys(ent1.fields)[4]].toString() : ''},
+                userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+              },
+              {
+                userEnteredValue: {stringValue: Object.keys(ent1.fields)[5] ? ent1.fields[Object.keys(ent1.fields)[5]].toString() : ''},
+                userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+              }
+            ]
           }
-        ]
-        },
-        {values: [
-          {
-            userEnteredValue: {stringValue: ""},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: ""},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: Object.keys(ent1[Object.keys(ent1)[2]])[0].toString()},
-            userEnteredFormat: {backgroundColor: col2}
-          },
-          {
-            userEnteredValue: {stringValue: Object.keys(ent1[Object.keys(ent1)[2]])[1].toString()},
-            userEnteredFormat: {backgroundColor: col2}
-          },
-          {
-            userEnteredValue: {stringValue: Object.keys(ent1[Object.keys(ent1)[2]])[2].toString()},
-            userEnteredFormat: {backgroundColor: col2}
-          },
-          {
-            userEnteredValue: {stringValue: Object.keys(ent1[Object.keys(ent1)[2]])[3].toString()},
-            userEnteredFormat: {backgroundColor: col2}
-          },
-          {
-            userEnteredValue: {stringValue: Object.keys(ent1[Object.keys(ent1)[2]])[4].toString()},
-            userEnteredFormat: {backgroundColor: col2}
-          },
-          {
-            userEnteredValue: {stringValue: Object.keys(ent1[Object.keys(ent1)[2]])[5].toString()},
-            userEnteredFormat: {backgroundColor: col2}
-          }
-        ]
-        },
-        {values: [
-          {
-            userEnteredValue: {stringValue: ent1[Object.keys(ent1)[0]].toString()},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: ent1[Object.keys(ent1)[1]].toString()},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: ent1[Object.keys(ent1)[2]][Object.keys(ent1[Object.keys(ent1)[2]])[0]].toString()},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: ent1[Object.keys(ent1)[2]][Object.keys(ent1[Object.keys(ent1)[2]])[1]].toString()},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: ent1[Object.keys(ent1)[2]][Object.keys(ent1[Object.keys(ent1)[2]])[2]].toString()},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: ent1[Object.keys(ent1)[2]][Object.keys(ent1[Object.keys(ent1)[2]])[3]].toString()},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: ent1[Object.keys(ent1)[2]][Object.keys(ent1[Object.keys(ent1)[2]])[4]].toString()},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: ent1[Object.keys(ent1)[2]][Object.keys(ent1[Object.keys(ent1)[2]])[5]].toString()},
-            userEnteredFormat: {backgroundColor: {green: 0.8, blue:0.8, red: 0.8}}
-          }
-        ]
+        ],
+        fields: 'userEnteredValue,userEnteredFormat.backgroundColor'
+      }
+    });
+  } else {
+    var idx = 0;
+    Object.keys(ent.options).forEach(function(tmp) {
+      requests.push({
+        updateCells: {
+          start: {sheetId: sheetId, rowIndex: row + 3, columnIndex: col + 4+idx},
+          rows: [
+            {
+              values: [
+                {
+                  userEnteredValue: {stringValue: ent.options[Object.keys(ent.options)[idx]].toString()},
+                  userEnteredFormat: {backgroundColor: {green: 0.8, blue: 0.8, red: 0.8}}
+                }
+              ]
+            }
+          ],
+          fields: 'userEnteredValue,userEnteredFormat.backgroundColor'
         }
-      ],
-      fields: 'userEnteredValue,userEnteredFormat.backgroundColor'
-    }
-  });
+      });
+      idx++;
+    });
+  }
 
-  var ent2 = ent.data[0].data;
+  var ent2;
   var col3 = {red: random.integer(1, 100)/100, green: random.integer(1, 100)/100, blue:random.integer(1, 100)/100};
   var col4 = {red: random.integer(1, 100)/100, green: random.integer(1, 100)/100, blue:random.integer(1, 100)/100};
   //console.log (ent2);
 
-  requests.push({
-    updateCells: {
-      start: {sheetId: sheetId, rowIndex: row+3, columnIndex: col+12},
-      rows: [
-        {values: [{
-          userEnteredValue: {stringValue: 'type'},
-          userEnteredFormat: {backgroundColor: {blue:0.8}}
-        },
+  var drow = row + 4;
+  var dcol = col + 12;
+  if (Array.isArray(ent.data) && Array.isArray(ent.data[0].data)) {
+    ent2 = ent.data[0].data;
+    //console.log (ent2);
+    requests.push({
+      updateCells: {
+        start: {sheetId: sheetId, rowIndex: row + 3, columnIndex: col + 12},
+        rows: [
           {
-            userEnteredValue: {stringValue: 'title'},
-            userEnteredFormat: {backgroundColor: {blue:0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: 'staffId'},
-            userEnteredFormat: {backgroundColor: {blue:0.8}}
-          },
-          {
-            userEnteredValue: {stringValue: 'data'},
-            userEnteredFormat: {backgroundColor: {blue:0.8}}
-          }
-          ]
-        }],
-      fields: 'userEnteredValue,userEnteredFormat.backgroundColor'
-    }
-  });
-  var drow = row+4;
-  var dcol = col+12;
+            values: [{
+              userEnteredValue: {stringValue: 'type'},
+              userEnteredFormat: {backgroundColor: {blue: 0.8}}
+            },
+              {
+                userEnteredValue: {stringValue: 'title'},
+                userEnteredFormat: {backgroundColor: {blue: 0.8}}
+              },
+              {
+                userEnteredValue: {stringValue: 'staffId'},
+                userEnteredFormat: {backgroundColor: {blue: 0.8}}
+              },
+              {
+                userEnteredValue: {stringValue: 'data'},
+                userEnteredFormat: {backgroundColor: {blue: 0.8}}
+              }
+            ]
+          }],
+        fields: 'userEnteredValue,userEnteredFormat.backgroundColor'
+      }
+    });
 
-  ent2.forEach(function(item){
-    requests.push({
-      updateCells: {
-        start: {sheetId: sheetId, rowIndex: drow, columnIndex: dcol},
-        rows: [
-          {values: [{
-            userEnteredValue: {stringValue: ''},
-            userEnteredFormat: {backgroundColor: {blue:0.8, red:0.8, green:0.8}}
-          },
+    ent2.forEach(function (item) {
+      requests.push({
+        updateCells: {
+          start: {sheetId: sheetId, rowIndex: drow, columnIndex: dcol},
+          rows: [
             {
-              userEnteredValue: {stringValue: ''},
-              userEnteredFormat: {backgroundColor: {blue:0.8, red:0.8, green:0.8}}
-            },
+              values: [{
+                userEnteredValue: {stringValue: ''},
+                userEnteredFormat: {backgroundColor: {blue: 0.8, red: 0.8, green: 0.8}}
+              },
+                {
+                  userEnteredValue: {stringValue: ''},
+                  userEnteredFormat: {backgroundColor: {blue: 0.8, red: 0.8, green: 0.8}}
+                },
+                {
+                  userEnteredValue: {stringValue: ''},
+                  userEnteredFormat: {backgroundColor: {blue: 0.8, red: 0.8, green: 0.8}}
+                },
+                {
+                  userEnteredValue: {stringValue: item.data ? 'description' : 'module'},
+                  userEnteredFormat: {
+                    backgroundColor: {blue: 0.2, red: 0.2, green: 0.2},
+                    "textFormat": {
+                      "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+                      "fontSize": 12, /*"bold": true*/
+                    }
+                  }
+                },
+                {
+                  userEnteredValue: {stringValue: item.data ? 'phone' : ''},
+                  userEnteredFormat: {
+                    backgroundColor: {blue: 0.2, red: 0.2, green: 0.2},
+                    "textFormat": {
+                      "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+                      "fontSize": 12, /*"bold": true*/
+                    }
+                  }
+                },
+                {
+                  userEnteredValue: {stringValue: item.data ? 'email' : ''},
+                  userEnteredFormat: {
+                    backgroundColor: {blue: 0.2, red: 0.2, green: 0.2},
+                    "textFormat": {
+                      "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+                      "fontSize": 12, /*"bold": true*/
+                    }
+                  }
+                }
+              ]
+            }],
+          fields: 'userEnteredValue,userEnteredFormat(backgroundColor,textFormat)'
+        }
+      });
+      requests.push({
+        updateCells: {
+          start: {sheetId: sheetId, rowIndex: drow + 1, columnIndex: dcol},
+          rows: [
             {
-              userEnteredValue: {stringValue: ''},
-              userEnteredFormat: {backgroundColor: {blue:0.8, red:0.8, green:0.8}}
-            },
-            {
-              userEnteredValue: {stringValue: 'description'},
-              userEnteredFormat: {backgroundColor: {blue:0.2, red:0.2, green:0.2},
-                "textFormat": {"foregroundColor": {"red": 1.0,"green": 1.0,"blue": 1.0},"fontSize": 12,/*"bold": true*/}}
-            },
-            {
-              userEnteredValue: {stringValue: 'phone'},
-              userEnteredFormat: {backgroundColor: {blue:0.2, red:0.2, green:0.2},
-                "textFormat": {"foregroundColor": {"red": 1.0,"green": 1.0,"blue": 1.0},"fontSize": 12,/*"bold": true*/}}
-            },
-            {
-              userEnteredValue: {stringValue: 'email'},
-              userEnteredFormat: {backgroundColor: {blue:0.2, red:0.2, green:0.2},
-                "textFormat": {"foregroundColor": {"red": 1.0,"green": 1.0,"blue": 1.0},"fontSize": 12,/*"bold": true*/}
-              }
-            }
-          ]
-          }],
-        fields: 'userEnteredValue,userEnteredFormat(backgroundColor,textFormat)'
-      }
+              values: [{
+                userEnteredValue: {stringValue: makestr(item.type)},
+                userEnteredFormat: {
+                  backgroundColor: {blue: 0.8, red: 0.8, green: 0.8},
+                  wrapStrategy: 'WRAP'
+                }
+              },
+                {
+                  userEnteredValue: {stringValue: makestr(item.title)},
+                  userEnteredFormat: {
+                    backgroundColor: {blue: 0.8, red: 0.8, green: 0.8},
+                    wrapStrategy: 'WRAP'
+                  }
+                },
+                {
+                  userEnteredValue: {stringValue: makestr(item.staffId)},
+                  userEnteredFormat: {
+                    backgroundColor: {blue: 0.8, red: 0.8, green: 0.8},
+                    wrapStrategy: 'WRAP'
+                  }
+                },
+                {
+                  userEnteredValue: {stringValue: makestr(item.data ? item.data.description : item.onTap.module)},
+                  userEnteredFormat: {
+                    backgroundColor: {blue: 0.8, red: 0.8, green: 0.8},
+                    wrapStrategy: 'WRAP'
+                  }
+                },
+                {
+                  userEnteredValue: {stringValue: makestr(item.data ? item.data.phone : '')},
+                  userEnteredFormat: {
+                    backgroundColor: {blue: 0.8, red: 0.8, green: 0.8},
+                    wrapStrategy: 'WRAP'
+                  }
+                },
+                {
+                  userEnteredValue: {stringValue: makestr(item.data ? item.data.email : '')},
+                  userEnteredFormat: {
+                    backgroundColor: {blue: 0.8, red: 0.8, green: 0.8},
+                    wrapStrategy: 'WRAP'
+                  }
+                }
+              ]
+            }],
+          fields: 'userEnteredValue,userEnteredFormat(backgroundColor,wrapStrategy)'
+        }
+      });
+      drow = drow + 2;
     });
-    requests.push({
-      updateCells: {
-        start: {sheetId: sheetId, rowIndex: drow+1, columnIndex: dcol},
-        rows: [
-          {values: [{
-            userEnteredValue: {stringValue: makestr(item.type)},
-            userEnteredFormat: {backgroundColor: {blue:0.8, red:0.8, green:0.8},
-              wrapStrategy: 'WRAP'}
-          },
-            {
-              userEnteredValue: {stringValue: makestr(item.title)},
-              userEnteredFormat: {backgroundColor: {blue:0.8, red:0.8, green:0.8},
-                wrapStrategy: 'WRAP'}
-            },
-            {
-              userEnteredValue: {stringValue: makestr(item.staffId)},
-              userEnteredFormat: {backgroundColor: {blue:0.8, red:0.8, green:0.8},
-                wrapStrategy: 'WRAP'}
-            },
-            {
-              userEnteredValue: {stringValue: makestr(item.data.description)},
-              userEnteredFormat: {backgroundColor: {blue:0.8, red:0.8, green:0.8},
-                wrapStrategy: 'WRAP'
-              }
-            },
-            {
-              userEnteredValue: {stringValue: makestr(item.data.phone)},
-              userEnteredFormat: {backgroundColor: {blue:0.8, red:0.8, green:0.8},
-                wrapStrategy: 'WRAP'}
-            },
-            {
-              userEnteredValue: {stringValue: makestr(item.data.email)},
-              userEnteredFormat: {backgroundColor: {blue:0.8, red:0.8, green:0.8},
-                wrapStrategy: 'WRAP'}
+  } else {
+    ent2 = ent.data;
+    var idx = 0;
+    if (Array.isArray(ent2)) {
+      ent2.forEach(function (item) {
+        idx = 0;
+        Object.keys(item).forEach(function (tmp) {
+          requests.push({
+            updateCells: {
+              start: {sheetId: sheetId, rowIndex: drow, columnIndex: dcol + idx},
+              rows: [
+                {
+                  values: [{
+                    userEnteredValue: {stringValue: tmp},
+                    userEnteredFormat: {
+                      backgroundColor: {blue: 0.2, red: 0.2, green: 0.2},
+                      "textFormat": {
+                        "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+                        "fontSize": 12, /*"bold": true*/
+                      }
+                    }
+                  }
+                  ]
+                },
+                {
+                  values: [{
+                    userEnteredValue: {stringValue: makestr(item[tmp])},
+                    userEnteredFormat: {
+                      backgroundColor: {blue: 0.8, red: 0.8, green: 0.8},
+                      wrapStrategy: 'WRAP'
+                    }
+                  }
+                  ]
+                }
+              ],
+              fields: 'userEnteredValue,userEnteredFormat(backgroundColor,wrapStrategy,textFormat)'
             }
-          ]
-          }],
-        fields: 'userEnteredValue,userEnteredFormat(backgroundColor,wrapStrategy)'
-      }
-    });
-    drow = drow+2;
-  });
+          });
+          idx++;
+        });
+        drow = drow + 2;
+      });
+    } else {
+      Object.keys(ent2).forEach(function (tmp) {
+        requests.push({
+          updateCells: {
+            start: {sheetId: sheetId, rowIndex: drow, columnIndex: dcol + idx},
+            rows: [
+              {
+                values: [{
+                  userEnteredValue: {stringValue: tmp},
+                  userEnteredFormat: {
+                    backgroundColor: {blue: 0.2, red: 0.2, green: 0.2},
+                    "textFormat": {
+                      "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+                      "fontSize": 12, /*"bold": true*/
+                    }
+                  }
+                }
+                ]
+              },
+              {
+                values: [{
+                  userEnteredValue: {stringValue: ent2[tmp].toString()},
+                  userEnteredFormat: {
+                    backgroundColor: {blue: 0.8, red: 0.8, green: 0.8},
+                    wrapStrategy: 'WRAP'
+                  }
+                }
+                ]
+              }
+            ],
+            fields: 'userEnteredValue,userEnteredFormat(backgroundColor,wrapStrategy,textFormat)'
+          }
+        });
+        idx++;
+      });
+      drow = drow + 2;
+    }
+  }
 
   /*requests.push({
     updateCells: {
@@ -687,10 +867,15 @@ function batchupdate(auth, sheetId, module_obj, startrow, callback) {
       console.log('The API returned an error: ' + err);
       return -1;
     } else {
+      cur_idx++;
+      if ( cur_idx < Object.keys(doc_obj).length) {
+        console.log ("drow : "+drow);
+        batchupdate(auth, sheetId, null, drow, null);
+      }
       //console.log("finished!");
-      return drow;
     }
   });
+  //return drow;
 }
 
 /**
